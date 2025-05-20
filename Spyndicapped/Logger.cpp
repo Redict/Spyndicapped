@@ -1,64 +1,57 @@
 #include "Logger.h"
 
-
 std::mutex logMutex;
 
+std::wstring LogLevelToString(LogLevel level) {
+    switch (level) {
+    case EMPTY:
+        return L"";
+    case INFO:
+        return L"INFO";
+    case DBG:
+        return L"DEBUG";
+    case WARNING:
+        return L"WARNING";
+    default:
+        return L"UNKNOWN";
+    }
+}
+
 void Log(const std::wstring& message, LogLevel level) {
+    if (level == DBG && !g_DebugModeEnable) {
+        return;
+    }
+
     std::lock_guard<std::mutex> lock(logMutex);
+    
+    std::wstring levelPrefix;
+    if (level != EMPTY) {
+        levelPrefix = L"[" + LogLevelToString(level) + L"] ";
+    }
 
     if (!g_LogFileName.empty()) {
-        FILE* logFile = nullptr;
-        errno_t err = _wfopen_s(&logFile, g_LogFileName.c_str(), L"a, ccs=UTF-16LE");
-        if (logFile == nullptr || err != 0)
-        {
-            std::wcout << L"Can't create logfile" << std::endl;
-            return;
-        }
-        _setmode(_fileno(logFile), _O_U16TEXT);
-    
-
-        switch (level) {
-        case EMPTY:
-            fwprintf(logFile, L"%ls\n", message.c_str());
-            break;
-
-        case INFO:
-            fwprintf(logFile, L"[INFO] %ls\n", message.c_str());
-            break;
-
-        case DBG:
-            if (g_DebugModeEnable) {
-                fwprintf(logFile, L"[DEBUG] %ls\n", message.c_str());
+        try {
+            FILE* logFile = nullptr;
+            errno_t err = _wfopen_s(&logFile, g_LogFileName.c_str(), L"a, ccs=UTF-16LE");
+            if (logFile == nullptr || err != 0) {
+                std::wcerr << L"Can't create or open logfile: " << g_LogFileName << L" (Error: " << err << L")" << std::endl;
+                std::wcout << levelPrefix << message << std::endl;
+                return;
             }
-            break;
-
-        case WARNING:
-            fwprintf(logFile, L"[WARNING] %ls\n", message.c_str());
-            break;
-
-        default:
-            break;
+            
+            auto fileGuard = std::unique_ptr<FILE, decltype(&fclose)>(logFile, fclose);
+            _setmode(_fileno(logFile), _O_U16TEXT);
+        
+            fwprintf(logFile, L"%ls%ls\n", levelPrefix.c_str(), message.c_str());
         }
-        fclose(logFile);
+        catch (const std::exception& e) {
+            std::wcerr << L"Error writing to log file: " << 
+                std::wstring(e.what(), e.what() + strlen(e.what())) << std::endl;
+            
+            std::wcout << levelPrefix << message << std::endl;
+        }
     }
     else {
-        switch (level) {
-        case EMPTY:
-            std::wcout << message << std::endl;
-            break;
-        case INFO:
-            std::wcout << L"[INFO] " << message << std::endl;
-            break;
-        case DBG:
-            if (g_DebugModeEnable) {
-                std::wcout << L"[DEBUG] " << message << std::endl;
-            }
-            break;
-        case WARNING:
-            std::wcout << L"[WARNING] " << message << std::endl;
-            break;
-        default:
-            break;
-        }
+        std::wcout << levelPrefix << message << std::endl;
     }
 }

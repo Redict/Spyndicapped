@@ -3,36 +3,38 @@
 #include "Errors.h"
 
 MyTreeWalker::MyTreeWalker(IUIAutomation* pUIAutomation)
+	: pAutomation(pUIAutomation)
 {
-	if (pUIAutomation == NULL)
+	if (pUIAutomation == nullptr)
 	{
 		Log(L"Failed to create TreeWalker. pUIAutomation was NULL", WARNING);
-		return;
+		throw std::invalid_argument("pUIAutomation cannot be null");
 	}
-
-	pAutomation = pUIAutomation;
 
 	HRESULT hr = pUIAutomation->get_RawViewWalker(&pWalker);
 	if (FAILED(hr))
 	{
 		Log(L"Failed to create TreeWalker.", WARNING);
 		PrintErrorFromHRESULT(hr);
-		return;
+		throw std::runtime_error("Failed to get RawViewWalker");
 	}
 }
 
 HRESULT MyTreeWalker::GetFirstAscendingWindowName(IUIAutomationElement* pAutomationElementChild, BSTR* bWindowName)
 {
-	if (bWindowName == NULL)
+	if (bWindowName == nullptr || pAutomationElementChild == nullptr)
 	{
 		return E_POINTER;
 	}
+	
 	CComPtr<IUIAutomationElement> pAutomationElementParent;
 	HRESULT hr = pAutomationElementChild->get_CurrentName(bWindowName);
 	if (SUCCEEDED(hr) && SysStringLen(*bWindowName) == 0)
 	{
+		CComPtr<IUIAutomationElement> pCurrentElement = pAutomationElementChild;
+		
 		while (true) {
-			pAutomationElementParent = g_pMyTreeWalker->GetParent(pAutomationElementChild);
+			pAutomationElementParent = GetParent(pCurrentElement);
 			if (!pAutomationElementParent)
 			{
 				Log(L"Can't find parent element", DBG);
@@ -51,7 +53,7 @@ HRESULT MyTreeWalker::GetFirstAscendingWindowName(IUIAutomationElement* pAutomat
 				break;
 			}
 
-			pAutomationElementChild = pAutomationElementParent;
+			pCurrentElement = pAutomationElementParent;
 		}
 	}
 	return S_OK;
@@ -59,53 +61,66 @@ HRESULT MyTreeWalker::GetFirstAscendingWindowName(IUIAutomationElement* pAutomat
 
 MyTreeWalker::~MyTreeWalker()
 {
-	if (pWalker != NULL)
-	{
-		pWalker->Release();
-	}
+	// CComPtr will automatically release pWalker
+	// pAutomation is non-owning, so we don't release it
 }
 
 IUIAutomationElement* MyTreeWalker::GetParent(IUIAutomationElement* pChild)
 {
-	IUIAutomationElement* pParent = NULL;
-
-	if (pWalker == NULL)
+	if (pChild == nullptr)
 	{
-		Log(L"pWalker was null", WARNING);
-		return pParent;
+		Log(L"GetParent: pChild was null", WARNING);
+		return nullptr;
 	}
 
+	if (pWalker == nullptr)
+	{
+		Log(L"GetParent: pWalker was null", WARNING);
+		return nullptr;
+	}
+
+	IUIAutomationElement* pParent = nullptr;
 	HRESULT hr = pWalker->GetParentElement(pChild, &pParent);
 	if (FAILED(hr))
 	{
 		Log(L"Failed to get parent.", WARNING);
 		PrintErrorFromHRESULT(hr);
+		return nullptr;
 	}
 	return pParent;
 }
 
 IUIAutomationElement* MyTreeWalker::FindFirstAscending(IUIAutomationElement* pStartElement, IUIAutomationCondition* pAutomationCondition)
 {
+	if (pStartElement == nullptr || pAutomationCondition == nullptr)
+	{
+		Log(L"FindFirstAscending: Invalid parameters", WARNING);
+		return nullptr;
+	}
+
 	CComPtr<IUIAutomationElement> pCurrentElement = GetParent(pStartElement);
+	if (!pCurrentElement)
+	{
+		return nullptr;
+	}
 
-	IUIAutomationElement* pFoundElement = NULL;
+	IUIAutomationElement* pFoundElement = nullptr;
 
-	while (pFoundElement == NULL) {
-
-		if (pCurrentElement == NULL)
-			return NULL;
-
-		BOOL isMatch = FALSE;
-
+	while (true) {
 		HRESULT hr = pCurrentElement->FindFirst(TreeScope_Subtree, pAutomationCondition, &pFoundElement);
-		if (SUCCEEDED(hr) && pFoundElement != NULL) {
+		if (SUCCEEDED(hr) && pFoundElement != nullptr) {
 			return pFoundElement; 
 		}
 
-		pCurrentElement = GetParent(pCurrentElement);
+		CComPtr<IUIAutomationElement> pParent = GetParent(pCurrentElement);
+		if (!pParent) {
+			break;
+		}
+		
+		pCurrentElement = pParent;
 	}
 
-	return NULL;
+	return nullptr;
 }
 
 IUIAutomation* MyTreeWalker::GetPAutomation()

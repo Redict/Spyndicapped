@@ -10,4 +10,11 @@
 #include <vector>
 #include <io.h>
 #include <fcntl.h>
+#include <memory>
+#include <functional>
+#include <stdexcept>
+
+extern bool g_IgnoreHandlers;
+extern std::wstring g_LogFileName;
+extern bool g_DebugModeEnable;
 

@@ -9,6 +9,8 @@
 #include <mutex>
 #include <io.h>
 #include <fcntl.h>
+#include <string>
+#include <chrono>
 
 extern std::wstring g_LogFileName;
 extern bool g_DebugModeEnable;
@@ -21,4 +23,4 @@ enum LogLevel {
 };
 
 void Log(const std::wstring& message, LogLevel level);
-
+std::wstring LogLevelToString(LogLevel level);

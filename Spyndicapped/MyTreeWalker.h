@@ -2,15 +2,19 @@
 #include <Windows.h>
 #include <UIAutomationClient.h>
 #include <atlbase.h>
+#include <memory>
+
+class MyTreeWalker;
+extern std::unique_ptr<MyTreeWalker> g_pMyTreeWalker;
 
 class MyTreeWalker
 {
 private:
-	IUIAutomation* pAutomation = NULL;
-	IUIAutomationTreeWalker* pWalker = NULL;
+	IUIAutomation* pAutomation = nullptr;
+	CComPtr<IUIAutomationTreeWalker> pWalker;
 
 public:
-	MyTreeWalker(IUIAutomation*);
+	MyTreeWalker(IUIAutomation* pUIAutomation);
 	~MyTreeWalker();
 	HRESULT GetFirstAscendingWindowName(IUIAutomationElement* pAutomationElement, BSTR* bWindowName);
 	IUIAutomationElement* GetParent(IUIAutomationElement* child);
@@ -18,5 +22,3 @@ public:
 	IUIAutomation* GetPAutomation();
 	IUIAutomationTreeWalker* GetPTreeWalker();
 };
-
-extern MyTreeWalker* g_pMyTreeWalker;
